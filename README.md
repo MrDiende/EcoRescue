@@ -77,7 +77,7 @@ The browser app uses the Supabase publishable/anon key. Never put the Supabase s
    VITE_SUPABASE_ANON_KEY=your-supabase-publishable-key
    ```
 
-2. Run [`supabase/schema.sql`](./supabase/schema.sql) in the Supabase SQL Editor. It creates the application tables, Auth profile triggers, tracking RPC, initial-admin bootstrap function, and role-aware RLS policies.
+2. Run [`supabase/schema.sql`](./supabase/schema.sql) in the Supabase SQL Editor. It creates the application tables, Auth profile triggers, tracking and collection-notification RPCs, initial-admin bootstrap function, and role-aware RLS policies. Re-run the complete schema after pulling updates so existing Supabase projects receive new functions and policies.
 3. Create the initial administrator in **Supabase Dashboard → Authentication → Users → Add user**, confirm the account, then run:
 
    ```sql
@@ -118,27 +118,82 @@ The actual `supabase/.env` file is ignored by Git. Do not commit credentials or 
 
 ```text
 ecorescue/
+├── .github/
+│   └── workflows/
+│       └── build.yml           # GitHub Actions production build check
 ├── public/
-│   └── assets/                 # Static assets, including the home-page hero image
+│   └── assets/
+│       └── hero.jpg            # Home-page hero image
 ├── src/
 │   ├── components/             # Shared layout, UI, maps, GPS and report components
-│   ├── lib/                    # Auth, Supabase data, store, geography and utilities
+│   │   ├── Layout.jsx
+│   │   ├── LiveTracking.jsx
+│   │   ├── OsmMap.jsx
+│   │   ├── ProtectedRoute.jsx
+│   │   ├── ReportDetails.jsx
+│   │   ├── RouteSharing.jsx
+│   │   ├── ui.jsx
+│   │   └── WasteCategoryPicker.jsx
+│   ├── lib/                    # Authentication, data, storage and domain helpers
+│   │   ├── auth.jsx
+│   │   ├── db.js
+│   │   ├── email.js
+│   │   ├── geo.js
+│   │   ├── geography.js
+│   │   ├── storage.js
+│   │   ├── store.jsx
+│   │   ├── supabase.js
+│   │   ├── supabaseData.js
+│   │   ├── time.js
+│   │   └── validation.js
 │   ├── pages/
 │   │   ├── admin/              # Administrator portal pages
+│   │   │   ├── AdminActivity.jsx
+│   │   │   ├── AdminAnnouncements.jsx
+│   │   │   ├── AdminCollectors.jsx
+│   │   │   ├── AdminDashboard.jsx
+│   │   │   ├── AdminGps.jsx
+│   │   │   ├── AdminIssues.jsx
+│   │   │   ├── AdminNotifications.jsx
+│   │   │   ├── AdminReports.jsx
+│   │   │   ├── AdminResidents.jsx
+│   │   │   ├── AdminRoutes.jsx
+│   │   │   ├── AdminSchedules.jsx
+│   │   │   └── AdminTrucks.jsx
 │   │   ├── collector/          # Collector portal pages
+│   │   │   ├── AssignedReports.jsx
+│   │   │   └── CollectorPages.jsx
 │   │   ├── resident/           # Resident portal pages
-│   │   └── shared/             # Pages shared across roles
+│   │   │   ├── ResidentPages.jsx
+│   │   │   └── ResidentTracking.jsx
+│   │   ├── shared/             # Pages shared across roles
+│   │   │   └── NotificationsPage.jsx
+│   │   ├── Landing.jsx
+│   │   ├── Login.jsx
+│   │   └── Register.jsx
 │   ├── styles/                 # Global, map and animation styles
+│   │   ├── animations.css
+│   │   ├── base.css
+│   │   ├── index.css
+│   │   ├── map.css
+│   │   └── scrollbars.css
 │   ├── utils/                  # Small shared helpers
+│   │   └── cn.js
 │   ├── App.jsx                 # Routes and role-protected portal shells
 │   └── main.jsx                # Frontend entry point
 ├── supabase/
+│   ├── .env.example            # Safe template for local Supabase settings
+│   ├── config.toml             # Supabase local/deployment configuration
 │   ├── functions/
-│   │   └── admin-manage-account/ # Optional privileged Auth account operations
-│   ├── schema.sql              # Database, triggers, RPCs, grants and RLS policies
-│   └── config.toml             # Supabase local/deployment configuration
+│   │   └── admin-manage-account/
+│   │       └── index.js        # Privileged Auth account operations
+│   └── schema.sql              # Database, triggers, RPCs, grants and RLS policies
+├── .gitignore
 ├── index.html
+├── package-lock.json
 ├── package.json
+├── README.md
+├── tsconfig.json
 └── vite.config.ts
 ```
 

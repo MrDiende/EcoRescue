@@ -256,6 +256,236 @@ as $$
   )
 $$;
 
+-- Create route notifications server-side so collectors need not read resident profiles.
+create or replace function public.notify_collection_residents(
+  p_schedule_id text,
+  p_event text,
+  p_purok text default null
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_schedule public.schedules%rowtype;
+  v_collector_name text;
+  v_route_name text;
+  v_purok_list text;
+  v_ordered text[];
+  v_next_purok text;
+  v_count integer := 0;
+begin
+  if public.current_app_role() <> 'collector' then
+    return 0;
+  end if;
+
+  select s.*
+    into v_schedule
+    from public.schedules s
+   where s.id = p_schedule_id
+     and s.collector_id = public.current_app_user_id();
+  if not found then
+    return 0;
+  end if;
+
+  select coalesce(array_agg(r.stop order by r.ordinality), array[]::text[])
+    into v_ordered
+    from jsonb_array_elements_text(
+      coalesce(
+        (select rt.stops from public.routes rt where rt.id = v_schedule.route_id),
+        '[]'::jsonb
+      )
+    ) with ordinality as r(stop, ordinality)
+   where v_schedule.puroks ? r.stop;
+
+  v_ordered := v_ordered || array(
+    select s.purok
+      from jsonb_array_elements_text(v_schedule.puroks) with ordinality as s(purok, ordinality)
+     where not (s.purok = any(v_ordered))
+     order by s.ordinality
+  );
+
+  select s.purok
+    into v_next_purok
+    from unnest(v_ordered) as s(purok)
+   where not exists (
+     select 1
+       from jsonb_array_elements_text(v_schedule.visited) as v(purok)
+      where v.purok = s.purok
+   )
+   limit 1;
+
+  v_collector_name := coalesce(
+    (select u.name from public.users u where u.id = v_schedule.collector_id),
+    'The collector'
+  );
+  v_route_name := coalesce(
+    (select r.name from public.routes r where r.id = v_schedule.route_id),
+    'collection route'
+  );
+  select array_to_string(array_agg(p.purok), ', ')
+    into v_purok_list
+    from jsonb_array_elements_text(v_schedule.puroks) as p(purok);
+
+  if p_event = 'started' then
+    if v_schedule.status <> 'in_progress'
+       or v_schedule.visited <> '[]'::jsonb
+       or v_next_purok is null
+       or not exists (
+         select 1
+           from public.gps g
+          where g.collector_id = v_schedule.collector_id
+            and g.schedule_id = v_schedule.id
+            and g.sharing
+       ) then
+      return 0;
+    end if;
+
+    insert into public.notifications (id, user_id, title, message, type, read, created_at, link)
+    select
+      'n-route-' || md5(v_schedule.id || ':started:' || v_next_purok || ':' || u.id),
+      u.id,
+      'Truck heading to ' || v_next_purok || ' first',
+      v_collector_name || ' started ' || v_route_name || ' and is coming to ' || v_next_purok ||
+        ' first. Please bring out your segregated waste.',
+      'schedule',
+      false,
+      now(),
+      '/resident/tracking'
+    from public.users u
+    where u.role = 'resident'
+      and u.active
+      and u.status = 'approved'
+      and u.purok = v_next_purok
+    on conflict (id) do nothing;
+    get diagnostics v_count = row_count;
+
+  elsif p_event = 'visited' then
+    if v_schedule.status <> 'in_progress'
+       or p_purok is null
+       or not (v_schedule.puroks ? p_purok)
+       or not (v_schedule.visited ? p_purok)
+       or not exists (
+         select 1
+           from public.gps g
+          where g.collector_id = v_schedule.collector_id
+            and g.schedule_id = v_schedule.id
+            and g.sharing
+       ) then
+      return 0;
+    end if;
+
+    insert into public.notifications (id, user_id, title, message, type, read, created_at, link)
+    select
+      'n-route-' || md5(v_schedule.id || ':visited:' || p_purok || ':done:' || u.id),
+      u.id,
+      'Collection done in ' || p_purok,
+      v_collector_name || ' has collected waste in ' || p_purok || '. Thank you for segregating!',
+      'schedule',
+      false,
+      now(),
+      '/resident/tracking'
+    from public.users u
+    where u.role = 'resident'
+      and u.active
+      and u.status = 'approved'
+      and u.purok = p_purok
+    on conflict (id) do nothing;
+    get diagnostics v_count = row_count;
+
+    if v_next_purok is not null then
+      insert into public.notifications (id, user_id, title, message, type, read, created_at, link)
+      select
+        'n-route-' || md5(v_schedule.id || ':visited:' || p_purok || ':next:' || v_next_purok || ':' || u.id),
+        u.id,
+        'Collection truck heading to ' || v_next_purok,
+        v_collector_name || ' finished ' || p_purok || ' and is on the way to ' || v_next_purok ||
+          '. Please bring out your segregated waste.',
+        'schedule',
+        false,
+        now(),
+        '/resident/tracking'
+      from public.users u
+      where u.role = 'resident'
+        and u.active
+        and u.status = 'approved'
+        and u.purok = v_next_purok
+      on conflict (id) do nothing;
+      get diagnostics v_count = row_count;
+    end if;
+
+  elsif p_event = 'completed' then
+    if v_schedule.status <> 'completed' then
+      return 0;
+    end if;
+
+    insert into public.notifications (id, user_id, title, message, type, read, created_at, link)
+    select
+      'n-route-' || md5(v_schedule.id || ':completed:' || u.id),
+      u.id,
+      'Collection completed',
+      'Today''s collection for ' || coalesce(v_purok_list, 'your area') ||
+        ' is complete. Thank you for segregating your waste!',
+      'schedule',
+      false,
+      now(),
+      '/resident/schedule'
+    from public.users u
+    where u.role = 'resident'
+      and u.active
+      and u.status = 'approved'
+      and exists (
+        select 1
+          from jsonb_array_elements_text(v_schedule.puroks) as p(purok)
+         where p.purok = u.purok
+      )
+    on conflict (id) do nothing;
+    get diagnostics v_count = row_count;
+
+  elsif p_event = 'missed' then
+    if v_schedule.status <> 'missed' then
+      return 0;
+    end if;
+
+    insert into public.notifications (id, user_id, title, message, type, read, created_at, link)
+    select
+      'n-route-' || md5(v_schedule.id || ':missed:' || u.id),
+      u.id,
+      'Collection missed in your area',
+      'Today''s collection could not be completed. Reason: ' ||
+        coalesce(nullif(v_schedule.missed_reason, ''), 'not provided') ||
+        '. The barangay will announce a new schedule.',
+      'schedule',
+      false,
+      now(),
+      '/resident/schedule'
+    from public.users u
+    where u.role = 'resident'
+      and u.active
+      and u.status = 'approved'
+      and exists (
+        select 1
+          from jsonb_array_elements_text(v_schedule.puroks) as p(purok)
+         where p.purok = u.purok
+      )
+      and not exists (
+        select 1
+          from jsonb_array_elements_text(v_schedule.visited) as v(purok)
+         where v.purok = u.purok
+      )
+    on conflict (id) do nothing;
+    get diagnostics v_count = row_count;
+  else
+    return 0;
+  end if;
+
+  return v_count;
+end;
+$$;
+revoke all on function public.notify_collection_residents(text, text, text) from public, anon;
+grant execute on function public.notify_collection_residents(text, text, text) to authenticated;
+
 create or replace function public.bootstrap_initial_admin(p_email text)
 returns void
 language plpgsql

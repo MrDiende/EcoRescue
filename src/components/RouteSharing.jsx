@@ -16,19 +16,16 @@ import {
   activeScheduleFor,
   addLog,
   adminIds,
-  approvedResidentIds,
   ensureGps,
   gpsFor,
   notify,
-  orderedStops,
   pushTrail,
-  residentIdsInPuroks,
   routeById,
   truckFor,
   useStore,
 } from '../lib/store';
 import { BASE, purokPoint } from '../lib/geography';
-import { estimateArrivalMinutes, haversineKm, nearestPurok } from '../lib/geo';
+import { haversineKm, nearestPurok } from '../lib/geo';
 import { formatDayDate, formatTime, isToday, nowISO, timeAgo } from '../lib/time';
 import { Alert, Badge, Button, ConfirmDialog, ProgressBar, StatusBadge, useToast } from './ui';
 import { remainingStops, routeProgress } from './LiveTracking';
@@ -164,7 +161,6 @@ export function RouteSharingPanel({ schedule }) {
   const isMine = schedule.collectorId === user.id;
   const canStart = isMine && schedule.status === 'scheduled' && isToday(schedule.date) && !active;
   const running = schedule.status === 'in_progress';
-  const viewers = approvedResidentIds(db).length;
   const pos = g && g.lat !== null && g.lng !== null ? { lat: g.lat, lng: g.lng } : null;
   const nextStop = remaining[0];
   const distToNext = pos && nextStop ? haversineKm(pos, purokPoint(nextStop)) * 1000 : null;
@@ -193,35 +189,6 @@ export function RouteSharingPanel({ schedule }) {
         loadPct: 0,
       });
       const routeName = route?.name ?? 'the collection route';
-      const ordered = orderedStops(d, s);
-      const firstStop = ordered[0];
-      const firstEta = firstStop ? estimateArrivalMinutes({ lat, lng }, ordered, firstStop) : null;
-      const inRoute = residentIdsInPuroks(d, s.puroks);
-      const firstStopResidents = firstStop ? residentIdsInPuroks(d, [firstStop]) : [];
-      const others = approvedResidentIds(d).filter((id) => !inRoute.includes(id));
-      notify(
-        d,
-        inRoute.filter((id) => !firstStopResidents.includes(id)),
-        {
-          title: 'Collection truck on the way',
-          message: `${user.name} started ${routeName} and is sharing live GPS location. Collection order: ${ordered.join(' → ')}.`,
-          type: 'schedule',
-          link: '/resident/tracking',
-        },
-      );
-      if (firstStop)
-        notify(d, firstStopResidents, {
-          title: `Truck heading to ${firstStop} first`,
-          message: `${user.name} started ${routeName} and is coming to ${firstStop} first.${firstEta !== null ? ` Estimated arrival: about ${firstEta} min.` : ''} Please bring out your segregated waste.`,
-          type: 'schedule',
-          link: '/resident/tracking',
-        });
-      notify(d, others, {
-        title: 'Collection truck is live',
-        message: `${user.name} is sharing live GPS location on ${routeName} (${s.puroks.join(', ')}).`,
-        type: 'schedule',
-        link: '/resident/tracking',
-      });
       notify(d, adminIds(d), {
         title: 'Collector started route',
         message: `${user.name} started ${routeName} and is sharing live GPS.`,
@@ -232,7 +199,7 @@ export function RouteSharingPanel({ schedule }) {
         d,
         actorOf(user),
         'Route started',
-        `Started ${routeName} for ${formatDayDate(s.date)} with live GPS; location shared with admins and ${inRoute.length + others.length} verified resident(s).`,
+        `Started ${routeName} for ${formatDayDate(s.date)} with live GPS; residents in the next Purok are notified.`,
       );
     });
     toast.success(
@@ -275,32 +242,11 @@ export function RouteSharingPanel({ schedule }) {
       const gs = ensureGps(d, user.id);
       gs.updatedAt = nowISO();
       addLog(d, actorOf(user), 'Purok visited', `Marked ${p} as collected on ${route?.name ?? 'route'}.`);
-      // Tell residents of the Purok just collected.
-      notify(d, residentIdsInPuroks(d, [p]), {
-        title: `Collection done in ${p}`,
-        message: `${user.name} has collected waste in ${p}. Thank you for segregating!`,
-        type: 'schedule',
-        link: '/resident/tracking',
-      });
-      // Tell residents of the NEXT Purok that the truck is heading their way, with an ETA.
-      const upcoming = orderedStops(d, s).filter((x) => !s.visited.includes(x));
-      const next = upcoming[0];
-      if (next) {
-        const from = gs.lat !== null && gs.lng !== null ? { lat: gs.lat, lng: gs.lng } : purokPoint(p);
-        const eta = estimateArrivalMinutes(from, upcoming, next);
-        const etaText = eta !== null ? ` Estimated arrival: about ${eta} min.` : '';
-        notify(d, residentIdsInPuroks(d, [next]), {
-          title: `Collection truck heading to ${next}`,
-          message: `${user.name} finished ${p} and is on the way to ${next}.${etaText} Please bring out your segregated waste.`,
-          type: 'schedule',
-          link: '/resident/tracking',
-        });
-      }
     });
     const upcomingNow = remainingStops(db, { ...schedule, visited: [...schedule.visited, p] });
     toast.success(
       upcomingNow[0]
-        ? `${p} collected. Next Purok (${upcomingNow[0]}) residents notified with an ETA.`
+        ? `${p} collected. Next Purok (${upcomingNow[0]}) residents notified.`
         : `${p} collected. That was the last Purok — tap Done assignment.`,
     );
   };
@@ -336,12 +282,6 @@ export function RouteSharingPanel({ schedule }) {
           type: 'schedule',
           link: '/admin/schedules',
         });
-        notify(d, residentIdsInPuroks(d, s.puroks), {
-          title: 'Collection completed',
-          message: `Today's collection for ${s.puroks.join(', ')} is complete. Thank you for segregating your waste!`,
-          type: 'schedule',
-          link: '/resident/schedule',
-        });
       } else {
         const missedPuroks = s.puroks.filter((p) => !s.visited.includes(p));
         addLog(
@@ -355,12 +295,6 @@ export function RouteSharingPanel({ schedule }) {
           message: `${user.name}: ${reason}`,
           type: 'schedule',
           link: '/admin/schedules',
-        });
-        notify(d, residentIdsInPuroks(d, missedPuroks), {
-          title: 'Collection missed in your area',
-          message: `Today's collection could not be completed. Reason: ${reason}. The barangay will announce a new schedule.`,
-          type: 'schedule',
-          link: '/resident/schedule',
         });
       }
     });
@@ -441,8 +375,7 @@ export function RouteSharingPanel({ schedule }) {
           )}
           {g.sharing && (
             <p className="flex items-center gap-1 text-green-700">
-              <ShieldCheck className="h-3.5 w-3.5" /> Visible to barangay admins and {viewers} verified
-              resident{viewers === 1 ? '' : 's'}.
+              <ShieldCheck className="h-3.5 w-3.5" /> Visible to barangay admins and verified residents.
             </p>
           )}
         </div>

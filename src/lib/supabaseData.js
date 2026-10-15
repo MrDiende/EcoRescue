@@ -71,6 +71,24 @@ export async function loadDatabase() {
 }
 
 export async function syncDatabase(previous, next) {
+  const collectionEvents = [];
+  for (const schedule of next.schedules) {
+    const before = previous.schedules.find((item) => item.id === schedule.id);
+    if (!before) continue;
+
+    if (before.status === 'scheduled' && schedule.status === 'in_progress') {
+      collectionEvents.push({ scheduleId: schedule.id, event: 'started' });
+    } else if (before.status === 'in_progress' && schedule.status === 'in_progress') {
+      for (const purok of schedule.visited.filter((item) => !before.visited.includes(item))) {
+        collectionEvents.push({ scheduleId: schedule.id, event: 'visited', purok });
+      }
+    } else if (before.status === 'in_progress' && schedule.status === 'completed') {
+      collectionEvents.push({ scheduleId: schedule.id, event: 'completed' });
+    } else if (before.status === 'in_progress' && schedule.status === 'missed') {
+      collectionEvents.push({ scheduleId: schedule.id, event: 'missed' });
+    }
+  }
+
   for (const [table, keyProperty] of TABLES) {
     const before = new Map(previous[table].map((record) => [record[keyProperty], JSON.stringify(record)]));
     const changed = next[table].filter(
@@ -86,6 +104,15 @@ export async function syncDatabase(previous, next) {
       const { error } = await supabase.from(table).update(toRow(record)).eq(conflict, record[keyProperty]);
       fail(error, table, 'update');
     }
+  }
+
+  for (const event of collectionEvents) {
+    const { error } = await supabase.rpc('notify_collection_residents', {
+      p_schedule_id: event.scheduleId,
+      p_event: event.event,
+      p_purok: event.purok ?? null,
+    });
+    fail(error, 'notify_collection_residents', event.event);
   }
 
   for (const [table, keyProperty] of [...TABLES].reverse()) {
