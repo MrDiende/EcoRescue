@@ -1,0 +1,24 @@
+# Dependencies
+/node_modules/
+
+# Production build
+/dist/
+
+# Local environment variables
+.env
+.env.*
+!.env.example
+/supabase/.env
+/supabase/.env.*
+!/supabase/.env.example
+
+# Local Supabase state
+/supabase/.temp/
+
+# Logs and test output
+*.log
+/coverage/
+
+# OS-generated files
+.DS_Store
+Thumbs.db

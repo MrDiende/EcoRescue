@@ -1,0 +1,10 @@
+/* EcoRescue global styles — organized into partials.
+   Pages/components use Tailwind utility classes directly in the JSX; the custom
+   rules below are split by concern for easier maintenance. */
+
+@import 'tailwindcss';
+
+@import './base.css';
+@import './animations.css';
+@import './scrollbars.css';
+@import './map.css';

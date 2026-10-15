@@ -1,0 +1,28 @@
+/* Shared animations + reduced-motion fallback. */
+
+/* Subtle fade-in for cards / content sections.
+   Opacity-only so it never leaves a lingering `transform` (which would trap
+   position:fixed descendants like modals inside the animated container). */
+@keyframes eco-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.eco-animate-in {
+  animation: eco-fade-in 0.3s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
