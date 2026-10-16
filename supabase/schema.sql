@@ -274,6 +274,13 @@ declare
   v_purok_list text;
   v_ordered text[];
   v_next_purok text;
+  v_gps_lat double precision;
+  v_gps_lng double precision;
+  v_target_lat double precision;
+  v_target_lng double precision;
+  v_distance_km double precision;
+  v_eta_minutes integer;
+  v_eta_message text;
   v_count integer := 0;
 begin
   if public.current_app_role() <> 'collector' then
@@ -324,6 +331,53 @@ begin
     (select r.name from public.routes r where r.id = v_schedule.route_id),
     'collection route'
   );
+  select g.lat, g.lng
+    into v_gps_lat, v_gps_lng
+    from public.gps g
+   where g.collector_id = v_schedule.collector_id
+     and g.schedule_id = v_schedule.id
+     and g.sharing;
+
+  -- Keep these approximate Purok coordinates in sync with src/lib/geography.js.
+  v_target_lat := case v_next_purok
+    when 'Purok 1' then 15.4789
+    when 'Purok 2' then 15.47846
+    when 'Purok 3' then 15.4774
+    when 'Purok 4' then 15.47634
+    when 'Purok 5' then 15.4759
+    when 'Purok 6' then 15.47634
+    when 'Purok 7' then 15.4774
+    when 'Purok 8' then 15.47846
+    else null
+  end;
+  v_target_lng := case v_next_purok
+    when 'Purok 1' then 120.9647
+    when 'Purok 2' then 120.96583
+    when 'Purok 3' then 120.9663
+    when 'Purok 4' then 120.96583
+    when 'Purok 5' then 120.9647
+    when 'Purok 6' then 120.96357
+    when 'Purok 7' then 120.9631
+    when 'Purok 8' then 120.96357
+    else null
+  end;
+
+  if v_gps_lat between -90 and 90
+     and v_gps_lng between -180 and 180
+     and v_target_lat is not null then
+    v_distance_km := 6371 * 2 * asin(sqrt(least(
+      1,
+      sin(radians(v_target_lat - v_gps_lat) / 2) ^ 2
+        + cos(radians(v_gps_lat)) * cos(radians(v_target_lat))
+        * sin(radians(v_target_lng - v_gps_lng) / 2) ^ 2
+    )));
+    v_eta_minutes := greatest(1, ceil((v_distance_km / 12) * 60)::integer);
+    v_eta_message := ' Rough ETA: about ' || v_eta_minutes ||
+      ' minute(s), based on approximate Purok coordinates, the latest shared GPS position, and an average speed of 12 km/h. Actual travel time may vary.';
+  else
+    v_eta_message := ' Estimated arrival is unavailable until a live GPS position is received.';
+  end if;
+
   select array_to_string(array_agg(p.purok), ', ')
     into v_purok_list
     from jsonb_array_elements_text(v_schedule.puroks) as p(purok);
@@ -348,7 +402,7 @@ begin
       u.id,
       'Truck heading to ' || v_next_purok || ' first',
       v_collector_name || ' started ' || v_route_name || ' and is coming to ' || v_next_purok ||
-        ' first. Please bring out your segregated waste.',
+        ' first.' || v_eta_message || ' Please bring out your segregated waste.',
       'schedule',
       false,
       now(),
@@ -401,7 +455,7 @@ begin
         u.id,
         'Collection truck heading to ' || v_next_purok,
         v_collector_name || ' finished ' || p_purok || ' and is on the way to ' || v_next_purok ||
-          '. Please bring out your segregated waste.',
+          '.' || v_eta_message || ' Please bring out your segregated waste.',
         'schedule',
         false,
         now(),

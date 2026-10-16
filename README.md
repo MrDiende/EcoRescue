@@ -59,7 +59,7 @@ The browser app uses the Supabase publishable/anon key. Never put the Supabase s
 4. **Apply for residency:** A resident registers and receives a Resident ID. The account is pending until an administrator reviews and approves it.
 5. **Collect waste:** The assigned collector signs in, opens a scheduled collection for that day, and starts the route. The browser requests location permission and shares GPS while the route is active and the app remains open.
 6. **Follow collection:** Administrators can view the live map. Approved residents can view live tracking. Collectors mark Puroks as collected and then complete the route or report an issue/missed collection.
-7. **Stay informed:** The app records status changes and distributes in-app notifications to affected residents, collectors, and administrators.
+7. **Stay informed:** The app records status changes and distributes in-app notifications to affected residents, collectors, and administrators. When a collector starts a route or marks a Purok visited, residents in the next Purok receive a rough ETA based on the latest shared GPS position.
 
 ## Getting started
 
