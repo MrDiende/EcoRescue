@@ -112,6 +112,15 @@ npm run preview
 
 Configure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the hosting provider's build environment before building for deployment. Location access requires HTTPS (or `localhost`) and the user's permission.
 
+### Deploy to Vercel
+
+1. In Vercel, open the project's **Settings → Environment Variables**.
+2. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` with the URL and publishable/anon key from the same Supabase project. Select every environment where the app will run (Production, Preview, and/or Development).
+3. Redeploy after saving the variables. Vite embeds `VITE_` variables at build time, so changing them does not update an already-built deployment.
+4. Set the Supabase Auth **Site URL** to the deployed site URL and add that URL under allowed redirect URLs.
+
+Accounts are shared through Supabase, not the browser that created them. To sign in, an account needs a Supabase Auth user and a matching `public.users` profile linked by `auth_user_id`; adding a row only to `public.users` does not create login credentials. Resident profiles must also be approved and active.
+
 The actual `supabase/.env` file is ignored by Git. Do not commit credentials or the Supabase service-role key. GitHub Actions runs the production build on pushes and pull requests using placeholder Supabase values; it does not connect to a Supabase project.
 
 ## Project structure

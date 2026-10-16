@@ -1,6 +1,7 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { StoreProvider, useStore } from './lib/store';
 import { AuthProvider } from './lib/auth';
+import { supabaseConfigurationError } from './lib/supabase';
 import { Logo } from './components/Layout';
 import { ToastProvider } from './components/ui';
 import ProtectedRoute, { GuestOnly } from './components/ProtectedRoute';
@@ -53,6 +54,33 @@ function LoadingGate({ children }) {
   );
 }
 export default function App() {
+  if (supabaseConfigurationError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+        <section
+          aria-labelledby="configuration-error-title"
+          className="w-full max-w-lg rounded-3xl border border-amber-200 bg-white p-6 shadow-xl sm:p-8"
+          role="alert"
+        >
+          <Logo />
+          <h1 id="configuration-error-title" className="mt-6 text-xl font-bold text-gray-900">
+            EcoRescue is not connected yet
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            This deployment is missing valid Supabase configuration, so sign-in and shared account data
+            are unavailable.
+          </p>
+          <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm leading-6 text-amber-900">
+            In Vercel, open <strong>Project Settings → Environment Variables</strong> and add
+            {' '}<code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> using the
+            values from your Supabase project. Apply them to the deployment environment, then redeploy.
+          </p>
+          <p className="mt-3 text-xs text-gray-500">{supabaseConfigurationError}</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <StoreProvider>
       <LoadingGate>
