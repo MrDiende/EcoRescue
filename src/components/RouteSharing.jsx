@@ -19,6 +19,7 @@ import {
   ensureGps,
   gpsFor,
   notify,
+  orderedStops,
   pushTrail,
   routeById,
   truckFor,
