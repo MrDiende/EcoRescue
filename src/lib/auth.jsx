@@ -40,7 +40,7 @@ export function AuthProvider({ children }) {
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState(null);
   const storedProfile = db.users.find((entry) => entry.id === authUserId);
-  const profile = storedProfile ?? (!loaded ? authProfile : null);
+  const profile = storedProfile ?? authProfile;
   const user =
     profile?.active && (profile.role !== 'resident' || profile.status === 'approved') ? profile : null;
 

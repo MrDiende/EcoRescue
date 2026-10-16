@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, LogOut, Menu, User as UserIcon, X } from 'lucide-react';
+import { Check, ChevronDown, Copy, LogOut, Menu, User as UserIcon, X } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { unreadCount, useStore } from '../lib/store';
-import { Alert, Avatar, Badge, useToast } from './ui';
+import { Alert, Avatar, useToast } from './ui';
 import { GpsPublisher } from './RouteSharing';
 import { BARANGAY_NAME, MUNICIPALITY } from '../lib/geography';
 import { cn } from '../utils/cn';
@@ -103,6 +103,7 @@ export default function Layout({ role }) {
   const nav = useNav(role);
   const [drawer, setDrawer] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
@@ -140,6 +141,16 @@ export default function Layout({ role }) {
       if (result?.warning) toast.error(result.warning);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not sign out.');
+    }
+  };
+  const copyAccountId = async () => {
+    try {
+      await navigator.clipboard.writeText(user.code);
+      setCopiedId(true);
+      window.setTimeout(() => setCopiedId(false), 2000);
+      toast.success(`${ROLE_LABEL[role]} ID copied.`);
+    } catch {
+      toast.error('Could not copy the ID on this device.');
     }
   };
   const sidebar = (
@@ -269,14 +280,31 @@ export default function Layout({ role }) {
             {menu && (
               <div
                 role="menu"
-                className="eco-animate-in absolute right-0 mt-2 w-60 rounded-2xl border border-gray-200/80 bg-white p-1.5 shadow-xl shadow-gray-900/10 ring-1 ring-black/5"
+                className="eco-animate-in absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] rounded-2xl border border-gray-200/80 bg-white p-1.5 shadow-xl shadow-gray-900/10 ring-1 ring-black/5"
               >
-                <div className="px-3 py-2">
-                  <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                <div className="min-w-0 px-3 py-2">
+                  <p className="break-words text-sm font-medium text-gray-900">{user.name}</p>
                   <p className="truncate text-xs text-gray-500">{user.email}</p>
-                  <Badge tone="green" className="mt-1">
-                    {user.code}
-                  </Badge>
+                  <div className="mt-2 rounded-lg bg-green-50 p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-green-800">
+                      {ROLE_LABEL[role]} ID
+                    </p>
+                    <div className="mt-1 flex min-w-0 items-start gap-2">
+                      <code className="min-w-0 flex-1 break-all font-mono text-xs leading-5 text-green-900">
+                        {user.code}
+                      </code>
+                      <button
+                        aria-label={`Copy ${ROLE_LABEL[role]} ID`}
+                        className="shrink-0 rounded-md p-1 text-green-800 hover:bg-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
+                        onClick={copyAccountId}
+                        role="menuitem"
+                        title={`Copy ${ROLE_LABEL[role]} ID`}
+                        type="button"
+                      >
+                        {copiedId ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <div className="my-1 border-t border-gray-100" />
                 {role !== 'admin' && (
