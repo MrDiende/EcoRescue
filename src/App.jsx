@@ -38,20 +38,52 @@ import {
 } from './pages/collector/CollectorPages';
 import AssignedReports from './pages/collector/AssignedReports';
 function LoadingGate({ children }) {
-  const { loaded } = useStore();
-  if (loaded) return <>{children}</>;
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-50">
-      <Logo />
-      <div className="flex items-center gap-2 text-sm text-gray-500">
-        <span
-          className="h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent"
-          aria-hidden
-        />
-        Loading EcoRescue…
+  const { loaded, loadError } = useStore();
+  if (!loaded) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-50">
+        <Logo />
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <span
+            className="h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent"
+            aria-hidden
+          />
+          Loading EcoRescue…
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+  if (loadError) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
+        <section
+          aria-labelledby="startup-error-title"
+          className="w-full max-w-lg rounded-3xl border border-red-200 bg-white p-6 shadow-xl sm:p-8"
+          role="alert"
+        >
+          <Logo />
+          <h1 id="startup-error-title" className="mt-6 text-xl font-bold text-gray-900">
+            EcoRescue could not finish loading
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            Check your internet connection and try again. If the problem continues, share this error
+            with the app administrator.
+          </p>
+          <pre className="mt-4 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-red-50 p-3 text-sm text-red-900">
+            {loadError}
+          </pre>
+          <button
+            className="mt-5 inline-flex h-10 items-center justify-center rounded-xl bg-green-600 px-4 text-sm font-semibold text-white hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+            onClick={() => window.location.reload()}
+            type="button"
+          >
+            Try again
+          </button>
+        </section>
+      </main>
+    );
+  }
+  return <>{children}</>;
 }
 export default function App() {
   if (supabaseConfigurationError) {

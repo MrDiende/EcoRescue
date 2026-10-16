@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { emptyDatabase } from './db';
-import { supabase } from './supabase';
+import { supabase, withTimeout } from './supabase';
 import { loadDatabase, syncDatabase, TABLE_NAMES } from './supabaseData';
 import { uid } from './storage';
 import { nowISO, todayISO } from './time';
@@ -9,6 +9,7 @@ const StoreContext = createContext(null);
 export function StoreProvider({ children }) {
   const [db, setDb] = useState(emptyDatabase);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [syncError, setSyncError] = useState(null);
   const authId = useRef(null);
   const generation = useRef(0);
@@ -31,15 +32,20 @@ export function StoreProvider({ children }) {
       loadedRef.current = false;
       setLoaded(false);
       try {
-        const next = id ? await loadDatabase() : emptyDatabase();
+        const next = id
+          ? await withTimeout(loadDatabase(), 'Loading your EcoRescue account data')
+          : emptyDatabase();
         if (!mounted || request !== generation.current) return;
         persistedDb.current = structuredClone(next);
         latestDb.current = next;
         setDb(next);
         setSyncError(null);
+        setLoadError(null);
       } catch (error) {
         if (!mounted || request !== generation.current) return;
-        setSyncError(error instanceof Error ? error.message : 'Could not load data from Supabase.');
+        const message = error instanceof Error ? error.message : 'Could not load data from Supabase.';
+        setSyncError(message);
+        setLoadError(message);
         const empty = emptyDatabase();
         persistedDb.current = structuredClone(empty);
         latestDb.current = empty;
@@ -55,16 +61,21 @@ export function StoreProvider({ children }) {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => void hydrate(session), 0);
     });
-    void supabase.auth.getSession().then(({ data, error }) => {
+    void withTimeout(supabase.auth.getSession(), 'Checking your EcoRescue session').then(({ data, error }) => {
       if (error) {
-        setSyncError(`Supabase session check failed: ${error.message}`);
+        const message = `Supabase session check failed: ${error.message}`;
+        setSyncError(message);
+        setLoadError(message);
         loadedRef.current = true;
         setLoaded(true);
         return;
       }
       void hydrate(data.session);
     }).catch((error) => {
-      setSyncError(error instanceof Error ? error.message : 'Could not verify the Supabase session.');
+      const message =
+        error instanceof Error ? error.message : 'Could not verify the Supabase session.';
+      setSyncError(message);
+      setLoadError(message);
       loadedRef.current = true;
       setLoaded(true);
     });
@@ -128,7 +139,9 @@ export function StoreProvider({ children }) {
     };
   }, [loaded, reload]);
   return (
-    <StoreContext.Provider value={{ db, commit, loaded, syncError, offlineNotice: null, reload }}>
+    <StoreContext.Provider
+      value={{ db, commit, loaded, loadError, syncError, offlineNotice: null, reload }}
+    >
       {children}
     </StoreContext.Provider>
   );

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { createAuthSignupClient, supabase } from './supabase';
+import { createAuthSignupClient, supabase, withTimeout } from './supabase';
 import { toRecord } from './supabaseData';
 import { actorOf, useStore } from './store';
 import { uid } from './storage';
@@ -11,7 +11,10 @@ export function homePath(role) {
 }
 
 async function getProfile(userId) {
-  const { data, error } = await supabase.from('users').select('*').eq('auth_user_id', userId).maybeSingle();
+  const { data, error } = await withTimeout(
+    supabase.from('users').select('*').eq('auth_user_id', userId).maybeSingle(),
+    'Loading your account profile',
+  );
   if (error) throw new Error(`Could not load your account: ${error.message}`);
   return data ? toRecord(data) : null;
 }
@@ -76,13 +79,17 @@ export function AuthProvider({ children }) {
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => void load(session), 0);
     });
-    void supabase.auth.getSession().then(({ data, error }) => {
+    void withTimeout(supabase.auth.getSession(), 'Checking your account session').then(({ data, error }) => {
       if (error) {
         setAuthError(`Supabase session check failed: ${error.message}`);
         setReady(true);
       } else {
         void load(data.session);
       }
+    }).catch((error) => {
+      if (!active) return;
+      setAuthError(error instanceof Error ? error.message : 'Could not verify your account session.');
+      setReady(true);
     });
     return () => {
       active = false;
@@ -92,10 +99,13 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async (email, password) => {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
+      const { data, error } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
+        'Signing in',
+      );
       if (error) {
         if (error.message.toLowerCase().includes('email not confirmed')) {
           return {
@@ -140,7 +150,10 @@ export function AuthProvider({ children }) {
       setReady(true);
       let warning;
       try {
-        await writeActivity(profile, 'Signed in', `${profile.name} (${profile.code}) signed in.`);
+        await withTimeout(
+          writeActivity(profile, 'Signed in', `${profile.name} (${profile.code}) signed in.`),
+          'Recording sign-in activity',
+        );
       } catch (activityError) {
         warning = activityError instanceof Error ? activityError.message : 'Could not record sign-in activity.';
       }
