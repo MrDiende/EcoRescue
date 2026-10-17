@@ -230,69 +230,119 @@ export default function AdminResidents() {
           />
         ) : (
           <div className="px-4 sm:px-5">
-            <TableWrap>
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className={th}>Resident</th>
-                  <th className={th}>ID</th>
-                  <th className={th}>Purok</th>
-                  <th className={th}>Status</th>
-                  <th className={th}>Registered</th>
-                  <th className={th}>Reviewed</th>
-                  <th className={th}>
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {list.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50/60">
-                    <td className={td}>
-                      <div className="flex items-center gap-3">
-                        <Avatar name={u.name} />
-                        <div>
-                          <p className="font-medium text-gray-900">{u.name}</p>
-                          <p className="text-xs text-gray-500">{u.email}</p>
-                        </div>
+            <div className="grid gap-3 py-4 sm:grid-cols-2 lg:hidden">
+              {list.map((u) => (
+                <article key={u.id} className="min-w-0 rounded-xl border border-gray-200 p-4">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar name={u.name} />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-gray-900">{u.name}</p>
+                        <p className="truncate text-xs text-gray-500">{u.email}</p>
                       </div>
-                    </td>
-                    <td className={`${td} font-mono text-xs`}>{u.code}</td>
-                    <td className={td}>{u.purok}</td>
-                    <td className={td}>
-                      <div className="flex flex-wrap gap-1">
-                        <StatusBadge status={u.status ?? 'pending'} />
-                        {!u.active && <StatusBadge status="inactive" />}
-                      </div>
-                    </td>
-                    <td className={`${td} whitespace-nowrap`}>{formatDate(u.createdAt)}</td>
-                    <td className={`${td} whitespace-nowrap`}>
-                      {u.reviewedAt ? formatDate(u.reviewedAt) : '—'}
-                    </td>
-                    <td className={`${td} text-right`}>
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          icon={<Eye className="h-4 w-4" />}
-                          aria-label={`View ${u.name}`}
-                          title="View details"
-                          onClick={() => setViewId(u.id)}
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="w-8 px-0 text-red-600 hover:bg-red-50"
-                          icon={<Trash2 className="h-4 w-4" />}
-                          aria-label={`Delete ${u.name}`}
-                          title="Delete request"
-                          onClick={() => setDelId(u.id)}
-                        />
-                      </div>
-                    </td>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                      <StatusBadge status={u.status ?? 'pending'} />
+                      {!u.active && <StatusBadge status="inactive" />}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="font-mono text-gray-600">{u.code}</span>
+                    <span className="text-gray-500">{purokLabel(u.purok)}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+                    <div className="min-w-0 text-xs text-gray-500">
+                      <p>Registered {formatDate(u.createdAt)}</p>
+                      {u.reviewedAt && <p className="mt-1">Reviewed {formatDate(u.reviewedAt)}</p>}
+                    </div>
+                    <div className="flex shrink-0 justify-end gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        icon={<Eye className="h-4 w-4" />}
+                        aria-label={`View ${u.name}`}
+                        title="View details"
+                        onClick={() => setViewId(u.id)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="w-8 px-0 text-red-600 hover:bg-red-50"
+                        icon={<Trash2 className="h-4 w-4" />}
+                        aria-label={`Delete ${u.name}`}
+                        title="Delete request"
+                        onClick={() => setDelId(u.id)}
+                      />
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="hidden lg:block">
+              <TableWrap>
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className={th}>Resident</th>
+                    <th className={th}>ID</th>
+                    <th className={th}>Purok</th>
+                    <th className={th}>Status</th>
+                    <th className={th}>Registered</th>
+                    <th className={th}>Reviewed</th>
+                    <th className={th}>
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </TableWrap>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {list.map((u) => (
+                    <tr key={u.id} className="hover:bg-gray-50/60">
+                      <td className={td}>
+                        <div className="flex items-center gap-3">
+                          <Avatar name={u.name} />
+                          <div>
+                            <p className="font-medium text-gray-900">{u.name}</p>
+                            <p className="text-xs text-gray-500">{u.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className={`${td} font-mono text-xs`}>{u.code}</td>
+                      <td className={td}>{u.purok}</td>
+                      <td className={td}>
+                        <div className="flex flex-wrap gap-1">
+                          <StatusBadge status={u.status ?? 'pending'} />
+                          {!u.active && <StatusBadge status="inactive" />}
+                        </div>
+                      </td>
+                      <td className={`${td} whitespace-nowrap`}>{formatDate(u.createdAt)}</td>
+                      <td className={`${td} whitespace-nowrap`}>
+                        {u.reviewedAt ? formatDate(u.reviewedAt) : '—'}
+                      </td>
+                      <td className={`${td} text-right`}>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            icon={<Eye className="h-4 w-4" />}
+                            aria-label={`View ${u.name}`}
+                            title="View details"
+                            onClick={() => setViewId(u.id)}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="w-8 px-0 text-red-600 hover:bg-red-50"
+                            icon={<Trash2 className="h-4 w-4" />}
+                            aria-label={`Delete ${u.name}`}
+                            title="Delete request"
+                            onClick={() => setDelId(u.id)}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </TableWrap>
+            </div>
           </div>
         )}
       </Card>

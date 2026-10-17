@@ -24,6 +24,7 @@ create table if not exists users (
   id               text primary key,
   auth_user_id     uuid references auth.users (id) on delete cascade,
   code             text not null,                       -- A-001 / R-0001 / C-001
+  legacy_code      text,
   role             text not null check (role in ('admin','resident','collector')),
   name             text not null,
   email            text not null unique,
@@ -45,12 +46,49 @@ create table if not exists users (
   collector_invite_token text
 );
 alter table users add column if not exists auth_user_id uuid references auth.users (id) on delete cascade;
+alter table users add column if not exists legacy_code text;
 alter table users add column if not exists collector_invite_token text;
 alter table users drop column if exists password;
 create unique index if not exists users_auth_user_id_idx on users (auth_user_id);
-create unique index if not exists users_resident_tracking_code_idx
-  on users (code)
-  where role = 'resident' and code ~ '^R-[0-9A-F]{32}$';
+
+create or replace function public.resident_tracking_code_for_uuid(p_user_id uuid)
+returns text
+language plpgsql
+immutable
+strict
+set search_path = public
+as $$
+declare
+  v_value numeric := 0;
+  v_result text := '';
+  v_alphabet constant text := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  v_remainder integer;
+  byte_index integer;
+begin
+  for byte_index in 0..15 loop
+    v_value := v_value * 256 + get_byte(uuid_send(p_user_id), byte_index);
+  end loop;
+
+  while v_value > 0 loop
+    v_remainder := mod(v_value, 36)::integer;
+    v_result := substr(v_alphabet, v_remainder + 1, 1) || v_result;
+    v_value := trunc(v_value / 36);
+  end loop;
+
+  return 'R-' || lpad(v_result, 25, '0');
+end;
+$$;
+revoke all on function public.resident_tracking_code_for_uuid(uuid) from public, anon, authenticated;
+
+update public.users
+   set legacy_code = coalesce(legacy_code, code),
+       code = public.resident_tracking_code_for_uuid(auth_user_id)
+ where role = 'resident'
+   and auth_user_id is not null
+   and code is distinct from public.resident_tracking_code_for_uuid(auth_user_id);
+
+drop index if exists users_resident_tracking_code_idx;
+create unique index users_resident_tracking_code_idx on users (code) where role = 'resident';
 create index if not exists users_role_idx   on users (role);
 create index if not exists users_status_idx on users (status);
 create index if not exists users_email_idx  on users (lower(email));
@@ -721,7 +759,7 @@ begin
   ) values (
     new.id::text, new.id,
     case when account_role = 'resident'
-      then 'R-' || upper(replace(new.id::text, '-', ''))
+      then public.resident_tracking_code_for_uuid(new.id)
       else role_prefix || lpad(next_code::text, 3, '0')
     end,
     account_role,
@@ -773,7 +811,11 @@ set search_path = public
 as $$
   select u.name, u.code, u.status, u.created_at, u.reviewed_at, u.rejection_reason
     from public.users u
-   where u.role = 'resident' and upper(u.code) = upper(trim(p_code))
+   where u.role = 'resident'
+     and (
+       upper(u.code) = upper(trim(p_code))
+       or upper(u.legacy_code) = upper(trim(p_code))
+     )
    limit 1
 $$;
 grant execute on function public.track_resident_application(text) to anon, authenticated;
@@ -805,6 +847,7 @@ begin
     new.id is distinct from old.id
     or new.auth_user_id is distinct from old.auth_user_id
     or new.code is distinct from old.code
+    or new.legacy_code is distinct from old.legacy_code
     or new.role is distinct from old.role
     or new.email is distinct from old.email
     or new.active is distinct from old.active

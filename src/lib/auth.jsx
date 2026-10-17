@@ -181,7 +181,11 @@ export function AuthProvider({ children }) {
     if (!data.user || (Array.isArray(data.user.identities) && data.user.identities.length === 0)) {
       throw new Error('An account with this email may already exist. Try signing in or use a different email.');
     }
-    return `R-${data.user.id.replaceAll('-', '').toUpperCase()}`;
+    const residentNumber = BigInt(`0x${data.user.id.replaceAll('-', '')}`)
+      .toString(36)
+      .toUpperCase()
+      .padStart(25, '0');
+    return `R-${residentNumber}`;
   }, []);
 
   const logout = useCallback(async () => {
