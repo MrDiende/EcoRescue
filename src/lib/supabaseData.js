@@ -78,11 +78,18 @@ export async function syncDatabase(previous, next) {
 
     if (before.status === 'scheduled' && schedule.status === 'in_progress') {
       collectionEvents.push({ scheduleId: schedule.id, event: 'started' });
-    } else if (before.status === 'in_progress' && schedule.status === 'in_progress') {
+    }
+
+    if (
+      (before.status === 'scheduled' || before.status === 'in_progress') &&
+      schedule.status === 'in_progress'
+    ) {
       for (const purok of schedule.visited.filter((item) => !before.visited.includes(item))) {
         collectionEvents.push({ scheduleId: schedule.id, event: 'visited', purok });
       }
-    } else if (before.status === 'in_progress' && schedule.status === 'completed') {
+    }
+
+    if (before.status === 'in_progress' && schedule.status === 'completed') {
       collectionEvents.push({ scheduleId: schedule.id, event: 'completed' });
     } else if (before.status === 'in_progress' && schedule.status === 'missed') {
       collectionEvents.push({ scheduleId: schedule.id, event: 'missed' });
