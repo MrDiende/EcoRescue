@@ -195,7 +195,7 @@ ecorescue/
 │   ├── config.toml             # Supabase local/deployment configuration
 │   ├── functions/
 │   │   └── admin-manage-account/
-│   │       └── index.js        # Privileged Auth account operations
+│   │       └── index.ts        # Privileged Auth account operations
 │   └── schema.sql              # Database, triggers, RPCs, grants and RLS policies
 ├── .gitignore
 ├── index.html
