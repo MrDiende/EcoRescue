@@ -4,7 +4,6 @@ import { supabase, withTimeout } from './supabase';
 import { loadDatabase, syncDatabase, TABLE_NAMES } from './supabaseData';
 import { uid } from './storage';
 import { nowISO, todayISO } from './time';
-import { haversineKm } from './geo';
 const StoreContext = createContext(null);
 export function StoreProvider({ children }) {
   const [db, setDb] = useState(emptyDatabase);
@@ -180,16 +179,6 @@ export function canViewLiveLocation(u) {
   if (u.role === 'admin') return true;
   if (u.role === 'resident') return u.status === 'approved';
   return false;
-}
-export function pushTrail(g, lat, lng, minMeters = 10, max = 150) {
-  const tr = g.trail ?? [];
-  const last = tr[tr.length - 1];
-  const dist = last ? haversineKm({ lat: last[0], lng: last[1] }, { lat, lng }) * 1000 : Infinity;
-  if (dist >= minMeters) {
-    tr.push([Math.round(lat * 1e6) / 1e6, Math.round(lng * 1e6) / 1e6]);
-    if (tr.length > max) tr.splice(0, tr.length - max);
-  }
-  g.trail = tr;
 }
 export const residentIdsInPuroks = (d, puroks) =>
   d.users

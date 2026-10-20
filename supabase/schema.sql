@@ -423,14 +423,7 @@ begin
   if p_event = 'started' then
     if v_schedule.status <> 'in_progress'
        or v_schedule.visited <> '[]'::jsonb
-       or v_next_purok is null
-       or not exists (
-         select 1
-           from public.gps g
-          where g.collector_id = v_schedule.collector_id
-            and g.schedule_id = v_schedule.id
-            and g.sharing
-       ) then
+       or v_next_purok is null then
       return 0;
     end if;
 
@@ -457,14 +450,7 @@ begin
     if v_schedule.status <> 'in_progress'
        or p_purok is null
        or not (v_schedule.puroks ? p_purok)
-       or not (v_schedule.visited ? p_purok)
-       or not exists (
-         select 1
-           from public.gps g
-          where g.collector_id = v_schedule.collector_id
-            and g.schedule_id = v_schedule.id
-            and g.sharing
-       ) then
+       or not (v_schedule.visited ? p_purok) then
       return 0;
     end if;
 
@@ -904,6 +890,11 @@ grant select, insert, update, delete on table
   public.issues,
   public.activity
 to authenticated;
+
+-- The admin-manage-account Edge Function uses the service role to verify
+-- administrator profiles and update resident/collector profiles.
+grant usage on schema public to service_role;
+grant select, update on table public.users to service_role;
 
 drop policy if exists "demo_all" on users;
 drop policy if exists "users_select" on users;

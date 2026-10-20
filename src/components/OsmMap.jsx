@@ -169,7 +169,6 @@ export function OsmMap({
       m.gps.accuracy,
       m.gps.updatedAt,
       m.gps.state,
-      m.gps.trail?.length ?? 0,
     ]),
   );
   useEffect(() => {
@@ -198,7 +197,7 @@ export function OsmMap({
         })
           .bindPopup(popupHtml(m))
           .addTo(g);
-        t = { marker, iconKey, acc: null, trail: null };
+        t = { marker, iconKey, acc: null };
         trucks.current.set(collector.id, t);
       } else {
         t.marker.setLatLng(ll);
@@ -233,23 +232,11 @@ export function OsmMap({
         g.removeLayer(t.acc);
         t.acc = null;
       }
-      const trail = gps.trail ?? [];
-      if (gps.sharing && trail.length > 1) {
-        if (!t.trail)
-          t.trail = L.polyline(trail, { color: m.color, weight: 3, opacity: 0.55, interactive: false }).addTo(
-            g,
-          );
-        else t.trail.setLatLngs(trail);
-      } else if (t.trail) {
-        g.removeLayer(t.trail);
-        t.trail = null;
-      }
     });
     trucks.current.forEach((t, id) => {
       if (seen.has(id)) return;
       g.removeLayer(t.marker);
       if (t.acc) g.removeLayer(t.acc);
-      if (t.trail) g.removeLayer(t.trail);
       trucks.current.delete(id);
     });
     if (follow) {

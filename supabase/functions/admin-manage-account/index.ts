@@ -41,7 +41,10 @@ Deno.serve(async (request) => {
     .select('role, active')
     .eq('auth_user_id', authData.user.id)
     .maybeSingle();
-  if (profileError) return response(500, { error: 'Could not verify administrator access.' });
+  if (profileError) {
+    console.error('Could not verify administrator profile:', profileError);
+    return response(500, { error: 'Could not verify administrator access.' });
+  }
   if (profile?.role !== 'admin' || !profile.active) {
     return response(403, { error: 'Administrator access is required.' });
   }

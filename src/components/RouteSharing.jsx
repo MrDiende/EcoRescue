@@ -20,7 +20,6 @@ import {
   gpsFor,
   notify,
   orderedStops,
-  pushTrail,
   routeById,
   truckFor,
   useStore,
@@ -33,6 +32,8 @@ import { remainingStops, routeProgress } from './LiveTracking';
 /** Minimum time / distance between saved GPS updates (keeps storage writes reasonable). */
 const GPS_MIN_INTERVAL_MS = 4000;
 const GPS_MIN_MOVE_M = 12;
+const GPS_MAX_UNCERTAINTY_FILTER_M = 25;
+const GPS_RELIABLE_SPEED_MPS = 1.5;
 const ARRIVAL_RADIUS_M = 120;
 export const geoSupported = () => typeof navigator !== 'undefined' && 'geolocation' in navigator;
 export const secureContext = () => typeof window !== 'undefined' && window.isSecureContext;
@@ -77,15 +78,33 @@ export function GpsPublisher() {
   useEffect(() => {
     if (!uidv || !sharing || !geoSupported()) return;
     let warned = false;
-    last.current = null;
+    last.current =
+      g?.lat !== null && g?.lat !== undefined && g?.lng !== null && g?.lng !== undefined
+        ? { t: Date.now(), lat: g.lat, lng: g.lng }
+        : null;
     const id = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude: lat, longitude: lng, accuracy, speed, heading } = pos.coords;
         const now = Date.now();
         const prev = last.current;
         const moved = prev ? haversineKm(prev, { lat, lng }) * 1000 : Infinity;
-        if (prev && (now - prev.t < 1500 || (now - prev.t < GPS_MIN_INTERVAL_MS && moved < GPS_MIN_MOVE_M)))
-          return;
+        const reliableSpeed = Number.isFinite(speed) && speed >= GPS_RELIABLE_SPEED_MPS &&
+          Number.isFinite(accuracy) && accuracy <= GPS_MIN_MOVE_M;
+        const movementThreshold = reliableSpeed
+          ? GPS_MIN_MOVE_M / 2
+          : Math.max(
+              GPS_MIN_MOVE_M,
+              Math.min(
+                Number.isFinite(accuracy) && accuracy > 0 ? accuracy : GPS_MIN_MOVE_M,
+                GPS_MAX_UNCERTAINTY_FILTER_M,
+              ),
+            );
+        if (
+          prev &&
+          ((now - prev.t < 1500) ||
+            moved < movementThreshold ||
+            now - prev.t < GPS_MIN_INTERVAL_MS)
+        ) return;
         last.current = { t: now, lat, lng };
         commit((d) => {
           const gs = ensureGps(d, uidv);
@@ -97,7 +116,6 @@ export function GpsPublisher() {
           gs.heading = heading ?? null;
           gs.mode = 'browser';
           gs.updatedAt = nowISO();
-          pushTrail(gs, lat, lng);
         });
       },
       (err) => {
@@ -186,7 +204,6 @@ export function RouteSharingPanel({ schedule }) {
         heading: null,
         updatedAt: nowISO(),
         scheduleId: s.id,
-        trail: [[lat, lng]],
         loadPct: 0,
       });
       const routeName = route?.name ?? 'the collection route';
@@ -247,7 +264,7 @@ export function RouteSharingPanel({ schedule }) {
     const upcomingNow = remainingStops(db, { ...schedule, visited: [...schedule.visited, p] });
     toast.success(
       upcomingNow[0]
-        ? `${p} collected. Next Purok (${upcomingNow[0]}) residents notified.`
+        ? `${p} collected. Next stop: ${upcomingNow[0]}.`
         : `${p} collected. That was the last Purok — tap Done assignment.`,
     );
   };
@@ -265,7 +282,6 @@ export function RouteSharingPanel({ schedule }) {
         sharing: false,
         scheduleId: null,
         updatedAt: nowISO(),
-        trail: [],
         speed: null,
         heading: null,
         loadPct: 0,

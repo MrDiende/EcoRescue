@@ -95,6 +95,7 @@ supabase functions deploy admin-manage-account
 ```
 
 Keep `SUPABASE_SERVICE_ROLE_KEY` in the Edge Function's server-side environment only. Never add it to `supabase/.env` or frontend code.
+If an account operation fails with “Could not verify administrator access,” inspect the `admin-manage-account` function logs in the Supabase Dashboard for the underlying database error. Confirm that `supabase/schema.sql` has been run in that same project and that the function is deployed there. The schema grants the function's service role permission to read and update user profiles.
 
 ### Install and run
 
